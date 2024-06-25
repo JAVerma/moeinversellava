@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 
 from transformers import CLIPVisionModel, CLIPImageProcessor, CLIPVisionConfig,SiglipImageProcessor, SiglipVisionModel
-import open_clip
-from collections import namedtuple
+# import open_clip
+
 
 class CLIPVisionTower(nn.Module):
     def __init__(self, vision_tower, args, delay_load=False):
@@ -172,7 +172,7 @@ class CLIPVisionTower2(nn.Module):
         self.vision_tower_name = vision_tower
         self.select_layer = args.mm_vision_select_layer
         self.select_feature = getattr(args, 'mm_vision_select_feature', 'patch')
-        self.delay_load = False
+
         if not delay_load:
             self.load_model()
         elif getattr(args, 'unfreeze_mm_vision_tower', False):
@@ -180,42 +180,19 @@ class CLIPVisionTower2(nn.Module):
         else:
             self.cfg_only = CLIPVisionConfig.from_pretrained(self.vision_tower_name)
 
-    def load_hf_vision_tower(self, vision_tower_name, device_map="cuda:0"):
-        image_processor = CLIPImageProcessor.from_pretrained(vision_tower_name)
-        vision_tower = CLIPVisionModel.from_pretrained(vision_tower_name)
-        return vision_tower, image_processor
-    
-    def load_open_clip_vision_tower(self, vision_tower_name, device_map="cuda:0"):
-        open_clip_model, open_clip_processor, _ = open_clip.create_model_and_transforms(vision_tower_name, precision=torch.bfloat16)
-        cfg = open_clip.CLIPVisionCfg()
-        def preprocess(image,**kwargs):
-            pixel_values = open_clip_processor(image).unsqueeze(0)
-            return dict(pixel_values=pixel_values)
-    
-        image_processor_placeholder = namedtuple('image_processor_placeholder', ['preprocess', 'image_mean'])
-        image_processor = image_processor_placeholder(preprocess=preprocess, image_mean=open_clip_processor.transforms[3].mean)
-        vision_tower = open_clip_model.visual 
-        cfg.hidden_size = vision_tower.trunk.embed_dim
-        vision_tower.config = cfg
-        vision_tower.to(device_map)
-        return vision_tower, image_processor
-    
-    def load_siglip_vision_tower(self, vision_tower_name, device_map="cuda:0"):
-        image_processor = SiglipImageProcessor.from_pretrained(vision_tower_name, cache_dir=self.cache_dir)
-        vision_tower = SiglipVisionModel.from_pretrained(vision_tower_name, cache_dir=self.cache_dir)
-        return vision_tower, image_processor
-
     def load_model(self, device_map=None):
         if self.is_loaded:
             print('{} is already loaded, `load_model` called again, skipping.'.format(self.vision_tower_name))
             return
         device_map='cuda:0'
-        self.vision_tower, self.image_processor = self.load_hf_vision_tower(vision_tower_name=self.vision_tower_name, device_map=device_map)
-        self.vision_tower_derma, self.image_processor_derma = self.load_hf_vision_tower(vision_tower_name="jiviai/jivi_derma_clip_patch_14_336")
-        # self.vision_tower_open_clip, self.image_processor_open_clip = self.load_open_clip_vision_tower(device_map)
-        self.is_loaded = True
-        self.vision_tower_derma.requires_grad_(False)
+        self.image_processor = CLIPImageProcessor.from_pretrained(self.vision_tower_name)
+        self.vision_tower = CLIPVisionModel.from_pretrained(self.vision_tower_name, device_map=device_map)
+        self.image_processor_siglip = SiglipImageProcessor.from_pretrained("google/siglip-so400m-patch14-384", cache_dir=self.cache_dir)
+        self.vision_tower_siglip = SiglipVisionModel.from_pretrained("google/siglip-so400m-patch14-384", cache_dir=self.cache_dir)
+        self.vision_tower_siglip.requires_grad_(False)
         self.vision_tower.requires_grad_(False)
+
+        self.is_loaded = True
 
     def feature_select(self, image_forward_outs):
         image_features = image_forward_outs.hidden_states[self.select_layer]
@@ -227,9 +204,6 @@ class CLIPVisionTower2(nn.Module):
             raise ValueError(f'Unexpected select feature: {self.select_feature}')
         return image_features
     
-    def feature_select_open_clip(self, image_forward_outs):
-        image_features = image_forward_outs[self.select_layer]
-        return image_features
     
     def feature_select_siglip(self, image_forward_outs):
         image_features = image_forward_outs.hidden_states[self.select_layer]
@@ -240,40 +214,36 @@ class CLIPVisionTower2(nn.Module):
         else:
             raise ValueError(f'Unexpected select feature: {self.select_feature}')
         return image_features
-
+    
 
     @torch.no_grad()
-    def forward(self, images,images_derma):
+    def forward(self, images,images_siglip):
         if type(images) is list:
             image_features = []
-            image_features_derma=[]
-            for image,image_derma in zip(images,images_derma):
+            image_features_siglip=[]
+            for image,image_siglip in zip(images,images_siglip):
                 image_forward_out = self.vision_tower(image.to(device=self.device, dtype=self.dtype).unsqueeze(0), output_hidden_states=True)
                 
                 image_feature = self.feature_select(image_forward_out).to(image.dtype)
                 
                 ####
-                image_forward_out_derma = self.vision_tower_derma(image_derma.to(device=self.vision_tower_derma.device, dtype=self.dtype), output_hidden_states=True)
-                image_features_derma = self.feature_select(image_forward_out_derma).to(images.dtype)    
-                # image_forward_out_open_clip = self.vision_tower_open_clip(image_open_clip.to(device=self.device, dtype=self.dtype).unsqueeze(0), output_hidden_states=True)
-                # image_feature_open_clip = self.feature_select(image_forward_out_open_clip).to(image.dtype)
-                # # print(image_feature_open_clip.shape)
-                image_features_derma.append(image_features_derma)
+                
+                image_forward_out_siglip = self.vision_tower_siglip(image_siglip.to(device=self.device, dtype=self.dtype).unsqueeze(0), output_hidden_states=True)
+                image_feature_siglip = self.feature_select(image_forward_out_siglip).to(image.dtype)
+                # print(image_feature_siglip.shape)
+                image_features_siglip.append(image_feature_siglip)
                 ####
                 image_features.append(image_feature)
         else:
             image_forward_outs = self.vision_tower(images.to(device=self.vision_tower.device, dtype=self.dtype), output_hidden_states=True)
             image_features = self.feature_select(image_forward_outs).to(images.dtype)
-
-            image_forward_outs_derma = self.vision_tower_derma(images_derma.to(device=self.vision_tower_derma.device, dtype=self.dtype), output_hidden_states=True)
-            image_features_derma = self.feature_select(image_forward_outs_derma).to(images.dtype)
             
             ############################
-            # image_forward_out_open_clip = self.vision_tower_open_clip(images_derma.to(device=self.vision_tower_open_clip.device, dtype=self.dtype), output_)
-            # image_features_derma = self.feature_select_open_clip(image_forward_out_open_clip).to(images.dtype)
-            # print(image_features_derma.shape)
+            image_forward_out_siglip = self.vision_tower_siglip(images_siglip.to(device=self.vision_tower_siglip.device, dtype=self.dtype), output_hidden_states=True)
+            image_features_siglip = self.feature_select(image_forward_out_siglip).to(images.dtype)
+            # print(image_features_siglip.shape)
             ##############################
-        return image_features,image_features_derma
+        return image_features,image_features_siglip
 
     @property
     def dummy_feature(self):

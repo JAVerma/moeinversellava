@@ -24,8 +24,6 @@ import json
 import logging
 import pathlib
 from typing import Dict, Optional, Sequence, List
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm import tqdm
 
 import torch
 
@@ -41,11 +39,9 @@ from llava import conversation as conversation_lib
 from llava.model import *
 from llava.mm_utils import tokenizer_image_token
 
-from PIL import Image, ImageFile, PngImagePlugin
-LARGE_ENOUGH_NUMBER = 100
-PngImagePlugin.MAX_TEXT_CHUNK = LARGE_ENOUGH_NUMBER * (1024**2)
-Image.MAX_IMAGE_PIXELS = 933120000
-ImageFile.LOAD_TRUNCATED_IMAGES = True
+from PIL import Image
+
+
 local_rank = None
 
 
@@ -767,32 +763,12 @@ class LazySupervisedDataset(Dataset):
                  tokenizer: transformers.PreTrainedTokenizer,
                  data_args: DataArguments):
         super(LazySupervisedDataset, self).__init__()
-        def is_valid_image(file_path):
-            try:
-                with Image.open(file_path) as img:
-                    img.verify()
-                return True
-            except (IOError, SyntaxError, FileNotFoundError) as e:
-                return False
         list_data_dict = json.load(open(data_path, "r"))
-        rank0_print(f"Total conversations before filtering: {len(list_data_dict)}")
-        filtered_list_data_dict = []
-        if len(list_data_dict) > 0 and hasattr(data_args, 'image_folder'):
-            with ThreadPoolExecutor(max_workers=8) as exe:
-                future_map = {
-                    exe.submit(is_valid_image, os.path.join(data_args.image_folder, conv["image"])): conv
-                    for conv in list_data_dict if "image" in conv
-                }
-                for fut in tqdm(as_completed(future_map), total=len(future_map), desc="checking image paths"):
-                    if fut.result():
-                        filtered_list_data_dict.append(future_map[fut])
-        list_data_dict = filtered_list_data_dict
+
         rank0_print("Formatting inputs...Skip in lazy mode")
-        rank0_print(f"Total conversations after filtering: {len(list_data_dict)}")
         self.tokenizer = tokenizer
         self.list_data_dict = list_data_dict
         self.data_args = data_args
-
 
     def __len__(self):
         return len(self.list_data_dict)
@@ -815,8 +791,8 @@ class LazySupervisedDataset(Dataset):
         return length_list
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        # try:
         try:
+
             sources = self.list_data_dict[i]
             if isinstance(i, int):
                 sources = [sources]
@@ -825,7 +801,7 @@ class LazySupervisedDataset(Dataset):
                 image_file = self.list_data_dict[i]['image']
                 image_folder = self.data_args.image_folder
                 processor = self.data_args.image_processor
-                processor_derma=self.data_args.image_processor_derma
+                processor_siglip=self.data_args.image_processor_siglip
                 image = Image.open(os.path.join(image_folder, image_file).strip()).convert('RGB')
                 
                 if self.data_args.image_aspect_ratio == 'pad':
@@ -844,12 +820,12 @@ class LazySupervisedDataset(Dataset):
                     image = expand2square(image, tuple(int(x*255) for x in processor.image_mean))
                     image2=image.copy()
                     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                    image_derma=processor_derma.preprocess(image2, return_tensors='pt')['pixel_values'][0]
+                    image_sig=processor_siglip.preprocess(image2, return_tensors='pt')['pixel_values'][0]
                 else:
                     image2=image.copy()
                     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
                     # print('done 0')
-                    image_derma=processor_derma.preprocess(image2, return_tensors='pt')['pixel_values'][0]
+                    image_sig=processor_siglip.preprocess(image2, return_tensors='pt')['pixel_values'][0]
                     # print('done 1')
                 sources = preprocess_multimodal(
                     copy.deepcopy([e["conversations"] for e in sources]),
@@ -867,17 +843,17 @@ class LazySupervisedDataset(Dataset):
             # image exist in the data
             if 'image' in self.list_data_dict[i]:
                 data_dict['image'] = image
-                data_dict['images_derma']=image_derma
+                data_dict['images_siglip']=image_sig
             elif self.data_args.is_multimodal:
                 # image does not exist in the data, but the model is multimodal
                 crop_size = self.data_args.image_processor.crop_size
-                crop_size2 = self.data_args.image_processor_derma.size
+                crop_size2 = self.data_args.image_processor_siglip.size
                 data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
-                data_dict['images_derma']=torch.zeros(3, crop_size2['height'], crop_size2['width'])
+                data_dict['images_siglip']=torch.zeros(3, crop_size2['height'], crop_size2['width'])
             return data_dict
         except Exception as e:
             print(f'Error with {e}')
-            return self.__getitem__(i - 1)
+            return self.__getitem__(random.randint(0, self.__len__()-1))
 
 @dataclass
 class DataCollatorForSupervisedDataset(object):
@@ -905,13 +881,13 @@ class DataCollatorForSupervisedDataset(object):
 
         if 'image' in instances[0]:
             images = [instance['image'] for instance in instances]
-            images_derma=[instance['images_derma'] for instance in instances]
+            images_sig=[instance['images_siglip'] for instance in instances]
             if all(x is not None and x.shape == images[0].shape for x in images):
                 batch['images'] = torch.stack(images)
-                batch['images_derma']=torch.stack(images_derma)
+                batch['images_siglip']=torch.stack(images_sig)
             else:
                 batch['images'] = images
-                batch['images_derma']=torch.stack(images_derma)
+                batch['images_siglip']=torch.stack(images_sig)
 
         return batch
 
@@ -1060,7 +1036,7 @@ def train(attn_implementation=None):
         vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16, device=training_args.device)
 
         data_args.image_processor = vision_tower.image_processor
-        data_args.image_processor_derma = vision_tower.image_processor_derma
+        data_args.image_processor_siglip=SiglipImageProcessor.from_pretrained("google/siglip-so400m-patch14-384")
 
         data_args.is_multimodal = True
 

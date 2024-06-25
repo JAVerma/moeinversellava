@@ -1,0 +1,121 @@
+pretrain:
+	deepspeed llava/train/train_mem.py \
+        --deepspeed ./scripts/zero2.json \
+        --model_name_or_path microsoft/Phi-3-mini-4k-instruct \
+        --version plain \
+        --data_path /home/gitartha/down/pretraining_llava.json \
+		--vision_tower openai/clip-vit-large-patch14-336 \
+        --image_folder /home/gitartha/image_downloaded \
+        --mm_projector_type mlp2x_gelu \
+        --tune_mm_mlp_adapter True \
+        --mm_vision_select_layer -2 \
+        --mm_use_im_start_end False \
+        --mm_use_im_patch_token False \
+        --bf16 True \
+        --output_dir ./checkpoints/llava-v1.5-phi3-mini-pretrain-june21 \
+        --num_train_epochs 1 \
+        --per_device_train_batch_size 32 \
+        --per_device_eval_batch_size 4 \
+        --gradient_accumulation_steps 1 \
+        --evaluation_strategy "no" \
+        --save_strategy "steps" \
+        --save_steps 0.5 \
+        --save_total_limit 10 \
+        --learning_rate 1e-3 \
+        --weight_decay 0. \
+        --warmup_ratio 0.03 \
+        --lr_scheduler_type "cosine" \
+        --logging_steps 1 \
+        --tf32 True \
+        --model_max_length 2048 \
+        --gradient_checkpointing True \
+        --dataloader_num_workers 4 \
+        --lazy_preprocess True \
+        --report_to wandb \
+
+
+finetune:
+	deepspeed llava/train/train_mem.py \
+	    --deepspeed ./scripts/zero3.json \
+	    --model_name_or_path microsoft/Phi-3-mini-4k-instruct \
+	    --version phi3_instruct \
+        --data_path /home/gitartha/partition/jayant_folder/playground/zip/llava_v1_5_mix665k.json \
+        --image_folder /home/gitartha/partition/jayant_folder/playground/zip/\
+		--vision_tower openai/clip-vit-large-patch14-336 \
+	    --pretrain_mm_mlp_adapter /home/gitartha/llava_openai_clip_derma_clip/checkpoints/llava-v1.5-phi3-mini-pretrain-june21/mm_projector.bin \
+	    --mm_projector_type mlp2x_gelu \
+	    --mm_vision_select_layer -2 \
+	    --mm_use_im_start_end False \
+	    --mm_use_im_patch_token False \
+	    --image_aspect_ratio pad \
+	    --group_by_modality_length True \
+	    --bf16 True \
+	    --output_dir ./checkpoints/llava-v1.5-phi3-mini-FT-Jun24 \
+	    --num_train_epochs 1 \
+	    --per_device_train_batch_size 32 \
+	    --per_device_eval_batch_size 4 \
+	    --gradient_accumulation_steps 1 \
+	    --evaluation_strategy "no" \
+	    --save_strategy "steps" \
+	    --save_steps 0.5 \
+	    --save_total_limit 2 \
+	    --learning_rate 2e-5 \
+	    --weight_decay 0. \
+	    --warmup_ratio 0.03 \
+	    --lr_scheduler_type "cosine" \
+	    --logging_steps 1 \
+	    --tf32 True \
+	    --model_max_length 2048 \
+	    --gradient_checkpointing True \
+	    --dataloader_num_workers 32 \
+	    --lazy_preprocess True \
+	    --report_to wandb
+
+finetune_peft:
+	deepspeed llava/train/train_mem.py \
+		--lora_enable True --lora_r 16 --lora_alpha 32 --mm_projector_lr 2e-5 \
+		--deepspeed ./scripts/zero3.json \
+		--model_name_or_path MBZUAI/LLaVA-Phi-3-mini-4k-instruct-FT  \
+		--pretrain_mm_mlp_adapter /home/gitartha/LLaVA-pp/LLaVA/checkpoints/llava-v1.5-phi3-mini-pretrain-10June-eye/mm_projector.bin \
+		--version phi3_instruct \
+		--data_path /home/gitartha/data/jivi_eye_conversation_caption_data/conversation_only_eye.json  \
+		--image_folder /home/gitartha/data/jivi_eye_conversation_caption_data  \
+		--vision_tower jiviai/eye_clip_0.4_1500  \
+		--mm_projector_type mlp2x_gelu \
+		--mm_vision_select_layer -2 \
+		--mm_use_im_start_end False \
+		--mm_use_im_patch_token False \
+		--image_aspect_ratio pad \
+		--group_by_modality_length True \
+		--bf16 True \
+		--output_dir ./checkpoints/llava-v1.5-phi3-mini-lora-jun10_eye_from_pretrain_r_16 \
+		--num_train_epochs 1 \
+		--per_device_train_batch_size 32 \
+		--per_device_eval_batch_size 4 \
+		--gradient_accumulation_steps 1 \
+		--evaluation_strategy "no" \
+		--save_strategy "steps" \
+		--save_steps 0.3 \
+		--save_total_limit 6 \
+		--learning_rate 2e-4 \
+		--weight_decay 0. \
+		--warmup_ratio 0.03 \
+		--lr_scheduler_type "cosine" \
+		--logging_steps 1 \
+		--tf32 True \
+		--model_max_length 2048 \
+		--gradient_checkpointing True \
+		--dataloader_num_workers 4 \
+		--lazy_preprocess True \
+    	--report_to wandb
+lmm_eval:
+	python3 -m accelerate.commands.launch \
+		--num_processes=1 \
+		-m lmms_eval \
+		--model llava \
+		--model_args pretrained="/home/gitartha/llava_openai_clip_derma_clip/checkpoints/llava-v1.5-phi3-mini-FT-Jun24,conv_template=phi3_instruct" \
+		--tasks mme \
+		--batch_size 64 \
+		--log_samples \
+		--log_samples_suffix llava_v1.5_mme_mmbenchen \
+		--output_path ./logs/
