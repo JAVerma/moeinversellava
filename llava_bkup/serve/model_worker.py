@@ -150,8 +150,7 @@ class ModelWorker:
             else:
                 images = None
                 image_sizes = None
-            # image_args = {"images": images, "image_sizes": image_sizes}
-            image_args = {"images": images, "images_derma": images, "image_sizes": image_sizes}
+            image_args = {"images": images, "image_sizes": image_sizes}
         else:
             images = None
             image_args = {}

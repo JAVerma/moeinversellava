@@ -25,12 +25,7 @@ from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH
 
 from llava.mm_utils import get_anyres_image_grid_shape
 
-import logging
 
-logging.basicConfig(filename='/home/gitartha/llava_openai_clip_derma_clip/output.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger()
-
-logger.info('This is an info message')
 class LlavaMetaModel:
 
     def __init__(self, config):
@@ -39,6 +34,7 @@ class LlavaMetaModel:
         if hasattr(config, "mm_vision_tower"):
             self.vision_tower = build_vision_tower(config, delay_load=True)
             self.mm_projector = build_vision_projector(config)
+
             if 'unpad' in getattr(config, 'mm_patch_merge_type', ''):
                 self.image_newline = nn.Parameter(
                     torch.empty(config.hidden_size, dtype=self.dtype)
@@ -75,8 +71,8 @@ class LlavaMetaModel:
 
         self.config.use_mm_proj = True
         self.config.mm_projector_type = getattr(model_args, 'mm_projector_type', 'linear')
-        self.config.mm_hidden_size = 2*vision_tower.hidden_size ###################
-        # self.config.mm_hidden_size = 248 ###################
+        # self.config.mm_hidden_size = vision_tower.hidden_size ###################
+        self.config.mm_hidden_size = 2480 ###################
         self.config.mm_vision_select_layer = mm_vision_select_layer
         self.config.mm_vision_select_feature = mm_vision_select_feature
         self.config.mm_patch_merge_type = mm_patch_merge_type
@@ -142,32 +138,25 @@ class LlavaMetaForCausalLM(ABC):
     def get_vision_tower(self):
         return self.get_model().get_vision_tower()
 
-    def encode_images(self, images,images_derma):
-        image_features = self.get_model().get_vision_tower()(images,images_derma)
+    def encode_images(self, images,images_siglip):
+        image_features = self.get_model().get_vision_tower()(images,images_siglip)
         #####################
         
         # concatenated_image_features = torch.cat((image_features[0],image_features[1]),dim=-1)
-        # batch,seq_len,embedding_dim=image_features[0].shape
-
-        # clip_embedding=image_features[0].reshape(batch,-1)
-        # derma_clip_embedding=image_features[1].reshape(batch, -1)
-        clip_embedding=image_features[0]
-        derma_clip_embedding=image_features[1]
-
-
-        # clip_embedding=clip_embedding.to('cuda')
-        # derma_clip_embedding=derma_clip_embedding.to('cuda')
-
-        combined_embedding = torch.cat((clip_embedding, derma_clip_embedding), dim=-1)
-
-
-        image_features = self.get_model().mm_projector(combined_embedding)
+        batch,seq_len,embedding_dim=image_features[0].shape
+        clip_embedding=image_features[0].reshape(batch,-1)
+        siglip_embedding=image_features[1].reshape(batch, -1)
+        clip_embedding=clip_embedding.to('cuda:0')
+        siglip_embedding=siglip_embedding.to('cuda:0')
+        combined_embedding = torch.cat((clip_embedding, siglip_embedding), dim=1)
+        concatenated_image_features=combined_embedding.reshape((batch,seq_len,-1))
+        image_features = self.get_model().mm_projector(concatenated_image_features)
         #######################
         return image_features
 
     def prepare_inputs_labels_for_multimodal(
         self, input_ids, position_ids, attention_mask, past_key_values, labels,
-        images, images_derma, image_sizes=None
+        images, images_siglip, image_sizes=None
     ):
         vision_tower = self.get_vision_tower()
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
@@ -177,7 +166,7 @@ class LlavaMetaForCausalLM(ABC):
             if type(images) is list:
                 images = [x.unsqueeze(0) if x.ndim == 3 else x for x in images]
             concat_images = torch.cat([image for image in images], dim=0)
-            concat_images_siglip = torch.cat([image for image in images_derma], dim=0)
+            concat_images_siglip = torch.cat([image for image in images_siglip], dim=0)
             
             image_features = self.encode_images(concat_images,concat_images_siglip)
             split_sizes = [image.shape[0] for image in images]
@@ -224,7 +213,7 @@ class LlavaMetaForCausalLM(ABC):
             else:
                 raise ValueError(f"Unexpected mm_patch_merge_type: {self.config.mm_patch_merge_type}")
         else:
-            image_features = self.encode_images(images, images_derma)
+            image_features = self.encode_images(images, images_siglip)
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):

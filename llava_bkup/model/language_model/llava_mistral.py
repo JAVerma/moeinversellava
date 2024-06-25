@@ -1,5 +1,3 @@
-# Modified from LLaVA: https://github.com/haotian-liu/LLaVA.git
-#
 #    Copyright 2023 Haotian Liu
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,9 +17,10 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
+from torch.nn import CrossEntropyLoss
 
 from transformers import AutoConfig, AutoModelForCausalLM, \
-                         Phi3Model, Phi3Config, Phi3ForCausalLM
+                         MistralConfig, MistralModel, MistralForCausalLM
 
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.generation.utils import GenerateOutput
@@ -29,24 +28,24 @@ from transformers.generation.utils import GenerateOutput
 from ..llava_arch import LlavaMetaModel, LlavaMetaForCausalLM
 
 
-class LlavaPhiConfig(Phi3Config):
-    model_type = "llava_phi"
+class LlavaMistralConfig(MistralConfig):
+    model_type = "llava_mistral"
 
 
-class LlavaPhiModel(LlavaMetaModel, Phi3Model):
-    config_class = LlavaPhiConfig
+class LlavaMistralModel(LlavaMetaModel, MistralModel):
+    config_class = LlavaMistralConfig
 
-    def __init__(self, config: Phi3Config):
-        super(LlavaPhiModel, self).__init__(config)
+    def __init__(self, config: MistralConfig):
+        super(LlavaMistralModel, self).__init__(config)
 
 
-class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
-    config_class = LlavaPhiConfig
+class LlavaMistralForCausalLM(MistralForCausalLM, LlavaMetaForCausalLM):
+    config_class = LlavaMistralConfig
 
     def __init__(self, config):
-        super(Phi3ForCausalLM, self).__init__(config)
-        self.model = LlavaPhiModel(config)
-        self.vocab_size = config.vocab_size
+        super(MistralForCausalLM, self).__init__(config)
+        self.model = LlavaMistralModel(config)
+
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
         # Initialize weights and apply final processing
@@ -67,14 +66,10 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         images: Optional[torch.FloatTensor] = None,
-        images_derma: Optional[torch.FloatTensor] = None,
         image_sizes: Optional[List[List[int]]] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
-        # print('########################################################################')
-        # print(images)
-        # images_derma = images.clone()
-        # images_derma = images.clone() if images is not None else None
+
         if inputs_embeds is None:
             (
                 input_ids,
@@ -90,7 +85,6 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
                 past_key_values,
                 labels,
                 images,
-                images_derma,
                 image_sizes
             )
 
@@ -113,16 +107,13 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
         inputs: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         image_sizes: Optional[torch.Tensor] = None,
-        images_derma: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
-        print(type(images))
-        # images_derma = images.clone() if images is not None else None
         position_ids = kwargs.pop("position_ids", None)
         attention_mask = kwargs.pop("attention_mask", None)
         if "inputs_embeds" in kwargs:
             raise NotImplementedError("`inputs_embeds` is not supported")
-        print(type(images_derma),'###############################################')
+
         if images is not None:
             (
                 inputs,
@@ -138,7 +129,6 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
                 None,
                 None,
                 images,
-                images_derma,
                 image_sizes=image_sizes
             )
         else:
@@ -154,18 +144,15 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None,
                                       inputs_embeds=None, **kwargs):
         images = kwargs.pop("images", None)
-        # images_derma = kwargs.pop("image_siglip", None)
         image_sizes = kwargs.pop("image_sizes", None)
         inputs = super().prepare_inputs_for_generation(
             input_ids, past_key_values=past_key_values, inputs_embeds=inputs_embeds, **kwargs
         )
         if images is not None:
             inputs['images'] = images
-            # inputs['sigimage']=images_derma
         if image_sizes is not None:
             inputs['image_sizes'] = image_sizes
         return inputs
 
-
-AutoConfig.register("llava_phi", LlavaPhiConfig)
-AutoModelForCausalLM.register(LlavaPhiConfig, LlavaPhiForCausalLM)
+AutoConfig.register("llava_mistral", LlavaMistralConfig)
+AutoModelForCausalLM.register(LlavaMistralConfig, LlavaMistralForCausalLM)
