@@ -826,6 +826,7 @@ class LazySupervisedDataset(Dataset):
                 image_folder = self.data_args.image_folder
                 processor = self.data_args.image_processor
                 processor_derma=self.data_args.image_processor_derma
+                processor_dino=self.data_args.dino_preprocess
                 image = Image.open(os.path.join(image_folder, image_file).strip()).convert('RGB')
                 
                 if self.data_args.image_aspect_ratio == 'pad':
@@ -843,13 +844,17 @@ class LazySupervisedDataset(Dataset):
                             return result
                     image = expand2square(image, tuple(int(x*255) for x in processor.image_mean))
                     image2=image.copy()
+                    image3=image.copy()
                     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
                     image_derma=processor_derma.preprocess(image2, return_tensors='pt')['pixel_values'][0]
+                    image_dino=processor_dino.preprocess(image, return_tensors='pt')['pixel_values'][0]
                 else:
                     image2=image.copy()
+                    image3=image.copy()
                     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
                     # print('done 0')
                     image_derma=processor_derma.preprocess(image2, return_tensors='pt')['pixel_values'][0]
+                    image_dino=processor_dino.preprocess(image, return_tensors='pt')['pixel_values'][0]
                     # print('done 1')
                 sources = preprocess_multimodal(
                     copy.deepcopy([e["conversations"] for e in sources]),
@@ -868,12 +873,14 @@ class LazySupervisedDataset(Dataset):
             if 'image' in self.list_data_dict[i]:
                 data_dict['image'] = image
                 data_dict['images_derma']=image_derma
+                data_dict['images_dino']=image_dino
             elif self.data_args.is_multimodal:
                 # image does not exist in the data, but the model is multimodal
                 crop_size = self.data_args.image_processor.crop_size
                 crop_size2 = self.data_args.image_processor_derma.size
                 data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
                 data_dict['images_derma']=torch.zeros(3, crop_size2['height'], crop_size2['width'])
+                data_dict['images_dino']=torch.zeros(3, crop_size2['height'], crop_size2['width'])
             return data_dict
         except Exception as e:
             print(f'Error with {e}')

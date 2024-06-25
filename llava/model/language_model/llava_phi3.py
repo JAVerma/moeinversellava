@@ -68,6 +68,7 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
         output_hidden_states: Optional[bool] = None,
         images: Optional[torch.FloatTensor] = None,
         images_derma: Optional[torch.FloatTensor] = None,
+        images_dino: Optional[torch.FloatTensor] = None,
         image_sizes: Optional[List[List[int]]] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
@@ -91,7 +92,8 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
                 labels,
                 images,
                 images_derma,
-                image_sizes
+                images_dino,
+                image_sizes=image_sizes
             )
 
         return super().forward(
@@ -114,6 +116,7 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
         images: Optional[torch.Tensor] = None,
         image_sizes: Optional[torch.Tensor] = None,
         images_derma: Optional[torch.Tensor] = None,
+        images_dino: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
         print(type(images))
@@ -139,6 +142,7 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
                 None,
                 images,
                 images_derma,
+                images_dino,
                 image_sizes=image_sizes
             )
         else:

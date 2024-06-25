@@ -39,8 +39,6 @@ class LlavaMetaModel:
         if hasattr(config, "mm_vision_tower"):
             self.vision_tower = build_vision_tower(config, delay_load=True)
             self.mm_projector = build_vision_projector(config)
-            self.mm_projector_dino = build_vision_projector(config)
-            self.mm_projector_siglip = build_vision_projector(config)
             if 'unpad' in getattr(config, 'mm_patch_merge_type', ''):
                 self.image_newline = nn.Parameter(
                     torch.empty(config.hidden_size, dtype=self.dtype)
@@ -85,8 +83,7 @@ class LlavaMetaModel:
 
         if getattr(self, 'mm_projector', None) is None:
             self.mm_projector = build_vision_projector(self.config)
-            self.mm_projector_dino = build_vision_projector(config)
-            self.mm_projector_siglip = build_vision_projector(config)
+
             if 'unpad' in mm_patch_merge_type:
                 embed_std = 1 / torch.sqrt(torch.tensor(self.config.hidden_size, dtype=self.dtype))
                 self.image_newline = nn.Parameter(
@@ -96,10 +93,7 @@ class LlavaMetaModel:
             # In case it is frozen by LoRA
             for p in self.mm_projector.parameters():
                 p.requires_grad = True
-            for p in self.mm_projector_dino.parameters():
-                p.requires_grad = True
-            for p in self.mm_projector_siglip.parameters():
-                p.requires_grad = True
+
         if pretrain_mm_mlp_adapter is not None:
             mm_projector_weights = torch.load(pretrain_mm_mlp_adapter, map_location='cpu')
             def get_w(weights, keyword):
