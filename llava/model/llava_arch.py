@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 
 from .multimodal_encoder.builder import build_vision_tower
-from .multimodal_projector.builder import build_vision_projector
+from .multimodal_projector.builder import build_vision_projector#,build_vision_projector_dino,build_vision_projector_sig
 
 from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 
@@ -38,9 +38,10 @@ class LlavaMetaModel:
 
         if hasattr(config, "mm_vision_tower"):
             self.vision_tower = build_vision_tower(config, delay_load=True)
-            self.mm_projector = build_vision_projector(config)
-            self.mm_projector_dino = build_vision_projector(config)
-            self.mm_projector_siglip = build_vision_projector(config)
+            self.mm_projector = build_vision_projector(config, name="clip")
+            self.mm_projector_dino = build_vision_projector(config, name="dino")
+            self.mm_projector_siglip = build_vision_projector(config, name="siglip")
+            self.meta_projector=
             if 'unpad' in getattr(config, 'mm_patch_merge_type', ''):
                 self.image_newline = nn.Parameter(
                     torch.empty(config.hidden_size, dtype=self.dtype)
@@ -84,9 +85,9 @@ class LlavaMetaModel:
         self.config.mm_patch_merge_type = mm_patch_merge_type
 
         if getattr(self, 'mm_projector', None) is None:
-            self.mm_projector = build_vision_projector(self.config)
-            self.mm_projector_dino = build_vision_projector(config)
-            self.mm_projector_siglip = build_vision_projector(config)
+            self.mm_projector = build_vision_projector(self.config, name="clip")
+            self.mm_projector_dino = build_vision_projector(self.config, name="dino")
+            self.mm_projector_siglip = build_vision_projector(self.config, name="siglip")
             if 'unpad' in mm_patch_merge_type:
                 embed_std = 1 / torch.sqrt(torch.tensor(self.config.hidden_size, dtype=self.dtype))
                 self.image_newline = nn.Parameter(
@@ -148,8 +149,8 @@ class LlavaMetaForCausalLM(ABC):
     def get_vision_tower(self):
         return self.get_model().get_vision_tower()
 
-    def encode_images(self, images,images_derma):
-        image_features = self.get_model().get_vision_tower()(images,images_derma)
+    def encode_images(self, images,images_sig,images_dino):
+        image_features = self.get_model().get_vision_tower()(images,images_sig,images_dino)
         #####################
         
         # concatenated_image_features = torch.cat((image_features[0],image_features[1]),dim=-1)
@@ -158,22 +159,25 @@ class LlavaMetaForCausalLM(ABC):
         # clip_embedding=image_features[0].reshape(batch,-1)
         # derma_clip_embedding=image_features[1].reshape(batch, -1)
         clip_embedding=image_features[0]
-        derma_clip_embedding=image_features[1]
+        sig_embedding=image_features[1]
+        dino_embedding=image_features[2]
 
 
         # clip_embedding=clip_embedding.to('cuda')
         # derma_clip_embedding=derma_clip_embedding.to('cuda')
 
-        combined_embedding = torch.cat((clip_embedding, derma_clip_embedding), dim=-1)
+        image_features_clip = self.get_model().mm_projector(clip_embedding)   #output - in space of phi 3
+        image_features_sig = self.get_model().mm_projector_siglip(sig_embedding)
+        image_features_dino = self.get_model().mm_projector_dino(dino_embedding)
+        combined_embedding = torch.cat((image_features_clip, image_features_sig,image_features_dino), dim=-2)
 
 
-        image_features = self.get_model().mm_projector(combined_embedding)
         #######################
-        return image_features
+        return combined_embedding
 
     def prepare_inputs_labels_for_multimodal(
         self, input_ids, position_ids, attention_mask, past_key_values, labels,
-        images, images_derma, images_dino,image_sizes=None
+        images, images_sig, images_dino,image_sizes=None
     ):
         vision_tower = self.get_vision_tower()
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
@@ -183,9 +187,9 @@ class LlavaMetaForCausalLM(ABC):
             if type(images) is list:
                 images = [x.unsqueeze(0) if x.ndim == 3 else x for x in images]
             concat_images = torch.cat([image for image in images], dim=0)
-            concat_images_siglip = torch.cat([image for image in images_derma], dim=0)
-            
-            image_features = self.encode_images(concat_images,concat_images_siglip)
+            concat_images_siglip = torch.cat([image for image in images_sig], dim=0)
+            concat_images_dino = torch.cat([image for image in images_dino], dim=0)
+            image_features = self.encode_images(concat_images,concat_images_siglip,concat_images_dino)
             split_sizes = [image.shape[0] for image in images]
             image_features = torch.split(image_features, split_sizes, dim=0)
             mm_patch_merge_type = getattr(self.config, 'mm_patch_merge_type', 'flat')
@@ -230,7 +234,7 @@ class LlavaMetaForCausalLM(ABC):
             else:
                 raise ValueError(f"Unexpected mm_patch_merge_type: {self.config.mm_patch_merge_type}")
         else:
-            image_features = self.encode_images(images, images_derma)
+            image_features = self.encode_images(concat_images,concat_images_siglip,concat_images_dino)
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):

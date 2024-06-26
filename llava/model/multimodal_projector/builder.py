@@ -30,16 +30,23 @@ class SimpleResBlock(nn.Module):
         return x + self.proj(x)
 
 
-def build_vision_projector(config, delay_load=False, **kwargs):
+def build_vision_projector(config, delay_load=False, name="clip", **kwargs):
     projector_type = getattr(config, 'mm_projector_type', 'linear')
 
+    if name=="clip":
+        mm_hidden_size = 1024
+    elif name=="sig":
+        mm_hidden_size = 1152
+    elif name=="dino":
+        mm_hidden_size = 1024
+
     if projector_type == 'linear':
-        return nn.Linear(config.mm_hidden_size, config.hidden_size)
+        return nn.Linear(mm_hidden_size, config.hidden_size)
 
     mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', projector_type)
     if mlp_gelu_match:
         mlp_depth = int(mlp_gelu_match.group(1))
-        modules = [nn.Linear(config.mm_hidden_size, config.hidden_size)]
+        modules = [nn.Linear(mm_hidden_size, config.hidden_size)]
         for _ in range(1, mlp_depth):
             modules.append(nn.GELU())
             modules.append(nn.Linear(config.hidden_size, config.hidden_size))
@@ -49,3 +56,45 @@ def build_vision_projector(config, delay_load=False, **kwargs):
         return IdentityMap()
 
     raise ValueError(f'Unknown projector type: {projector_type}')
+
+# def build_vision_projector_sig(config, delay_load=False, **kwargs):
+#     projector_type = getattr(config, 'mm_projector_type', 'linear')
+
+#     if projector_type == 'linear':
+#         return nn.Linear(config.mm_hidden_size_sig, config.hidden_size)
+
+#     mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', projector_type)
+#     if mlp_gelu_match:
+#         mlp_depth = int(mlp_gelu_match.group(1))
+#         modules = [nn.Linear(config.mm_hidden_size_sig, config.hidden_size)]
+#         for _ in range(1, mlp_depth):
+#             modules.append(nn.GELU())
+#             modules.append(nn.Linear(config.hidden_size, config.hidden_size))
+#         return nn.Sequential(*modules)
+
+#     if projector_type == 'identity':
+#         return IdentityMap()
+
+#     raise ValueError(f'Unknown projector type: {projector_type}')
+
+# def build_vision_projector_dino(config, delay_load=False, **kwargs):
+#     projector_type = getattr(config, 'mm_projector_type', 'linear')
+
+#     if projector_type == 'linear':
+#         return nn.Linear(config.mm_hidden_size_dino, config.hidden_size)
+
+#     mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', projector_type)
+#     if mlp_gelu_match:
+#         mlp_depth = int(mlp_gelu_match.group(1))
+#         modules = [nn.Linear(config.mm_hidden_size_dino, config.hidden_size)]
+#         for _ in range(1, mlp_depth):
+#             modules.append(nn.GELU())
+#             modules.append(nn.Linear(config.hidden_size, config.hidden_size))
+#         return nn.Sequential(*modules)
+
+#     if projector_type == 'identity':
+#         return IdentityMap()
+
+#     raise ValueError(f'Unknown projector type: {projector_type}')
+
+    
