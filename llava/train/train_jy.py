@@ -197,10 +197,15 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer,
     if getattr(trainer.args, "tune_mm_mlp_adapter", False):
         # Only save Adapter
         keys_to_match = ['mm_projector']
+        keys_to_match2 = ['mm_projector_sig']
+        keys_to_match3= ['mm_projector_dino']
         if getattr(trainer.args, "use_im_start_end", False):
             keys_to_match.extend(['embed_tokens', 'embed_in'])
 
-        weight_to_save = get_mm_adapter_state_maybe_zero_3(trainer.model.named_parameters(), keys_to_match)
+        weight_to_save = get_mm_adapter_state_maybe_zero_3(trainer.model.named_parameters(), keys_to_match) # as in is use thus all weights are save in one
+        # weight_to_save2 = get_mm_adapter_state_maybe_zero_3(trainer.model.named_parameters(), keys_to_match2)
+        # weight_to_save3 = get_mm_adapter_state_maybe_zero_3(trainer.model.named_parameters(), keys_to_match3)
+        print('jayant')
         trainer.model.config.save_pretrained(output_dir)
 
         current_folder = output_dir.split('/')[-1]

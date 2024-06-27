@@ -237,6 +237,8 @@ class LLaVATrainer(Trainer):
 
             # Only save Adapter
             keys_to_match = ['mm_projector', 'vision_resampler']
+            keys_to_match1 = ['mm_projector_dino', 'vision_resampler']
+            keys_to_match2= ['mm_projector_siglip', 'vision_resampler']
             if getattr(self.args, "use_im_start_end", False):
                 keys_to_match.extend(['embed_tokens', 'embed_in'])
 
@@ -246,6 +248,7 @@ class LLaVATrainer(Trainer):
                 self.model.config.save_pretrained(output_dir)
                 torch.save(weight_to_save, os.path.join(output_dir, f'mm_projector.bin'))
         else:
+            print('here')
             super(LLaVATrainer, self)._save_checkpoint(model, trial, metrics)
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
