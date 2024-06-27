@@ -265,7 +265,7 @@ class CLIPVisionTower2(nn.Module):
                 image_forward_out_sig = self.siglip_tower(image_sig.to(device=self.device, dtype=self.dtype).unsqueeze(0), output_hidden_states=True)
                 image_feature_sig = self.feature_select(image_forward_out_sig).to(image.dtype)
                 
-                image_forward_out_dino = self.vision_tower(image_dino.to(device=self.device, dtype=self.dtype).unsqueeze(0), output_hidden_states=True)
+                image_forward_out_dino = self.dino_tower_tower(image_dino.to(device=self.device, dtype=self.dtype).unsqueeze(0), output_hidden_states=True)
                 image_feature_dino = self.feature_select(image_forward_out_dino).to(image.dtype)
     
                 ####
@@ -281,14 +281,14 @@ class CLIPVisionTower2(nn.Module):
                 image_features_dino.append(image_feature_dino)
 
         else:
-            image_forward_out = self.vision_tower(images.to(device=self.device, dtype=self.dtype).unsqueeze(0), output_hidden_states=True)
-            image_features = self.feature_select(image_forward_out).to(image.dtype)
+            image_forward_out = self.vision_tower(images.to(device=self.device, dtype=self.dtype), output_hidden_states=True)
+            image_features = self.feature_select(image_forward_out).to(images.dtype)
             
-            image_forward_out_sig = self.siglip_tower(images_sig.to(device=self.device, dtype=self.dtype).unsqueeze(0), output_hidden_states=True)
-            image_features_sig = self.feature_select(image_forward_out_sig).to(image.dtype)
+            image_forward_out_sig = self.siglip_tower(images_sig.to(device=self.device, dtype=self.dtype), output_hidden_states=True)
+            image_features_sig = self.feature_select(image_forward_out_sig).to(images.dtype)
             
-            image_forward_out_dino = self.vision_tower(images_dino.to(device=self.device, dtype=self.dtype).unsqueeze(0), output_hidden_states=True)
-            image_features_dino = self.feature_select(image_forward_out_dino).to(image.dtype)
+            image_forward_out_dino = self.vision_tower(images_dino.to(device=self.device, dtype=self.dtype), output_hidden_states=True)
+            image_features_dino = self.feature_select(image_forward_out_dino).to(images.dtype)
         
             ############################
             # image_forward_out_open_clip = self.vision_tower_open_clip(images_derma.to(device=self.vision_tower_open_clip.device, dtype=self.dtype), output_)
