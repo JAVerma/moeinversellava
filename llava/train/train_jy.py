@@ -1126,7 +1126,6 @@ def train(attn_implementation=None):
     data_module = make_supervised_data_module(tokenizer=tokenizer,
                                               data_args=data_args)
     
-    print('done')
     trainer = LLaVATrainer(model=model,
                     tokenizer=tokenizer,
                     args=training_args,
