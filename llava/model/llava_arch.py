@@ -171,9 +171,9 @@ class LlavaMetaForCausalLM(ABC):
         image_features_dino = self.get_model().mm_projector_dino(dino_embedding)
         combined_embedding = torch.cat((image_features_clip, image_features_sig,image_features_dino), dim=-2)
 
-
+        image_features_combined=combined_embedding
         #######################
-        return combined_embedding
+        return image_features_combined
 
     def prepare_inputs_labels_for_multimodal(
         self, input_ids, position_ids, attention_mask, past_key_values, labels,
