@@ -787,6 +787,7 @@ class LazySupervisedDataset(Dataset):
                     if fut.result():
                         filtered_list_data_dict.append(future_map[fut])
         list_data_dict = filtered_list_data_dict
+        list_data_dict=list_data_dict[:4]
         rank0_print("Formatting inputs...Skip in lazy mode")
         rank0_print(f"Total conversations after filtering: {len(list_data_dict)}")
         self.tokenizer = tokenizer
@@ -1085,10 +1086,19 @@ def train(attn_implementation=None):
             model.requires_grad_(False)
             for p in model.get_model().mm_projector.parameters():
                 p.requires_grad = True
+            for p in model.get_model().mm_projector_dino.parameters():
+                p.requires_grad = True
+            for p in model.get_model().mm_projector_siglip.parameters():
+                p.requires_grad = True
+            
 
         model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
         if training_args.freeze_mm_mlp_adapter:
             for p in model.get_model().mm_projector.parameters():
+                p.requires_grad = False
+            for p in model.get_model().mm_projector_dino.parameters():
+                p.requires_grad = False
+            for p in model.get_model().mm_projector_siglip.parameters():
                 p.requires_grad = False
 
         if training_args.bits in [4, 8]:
