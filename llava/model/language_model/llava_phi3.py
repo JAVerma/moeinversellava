@@ -67,7 +67,7 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         images: Optional[torch.FloatTensor] = None,
-        images_derma: Optional[torch.FloatTensor] = None,
+        images_sig: Optional[torch.FloatTensor] = None,
         images_dino: Optional[torch.FloatTensor] = None,
         image_sizes: Optional[List[List[int]]] = None,
         return_dict: Optional[bool] = None,
@@ -91,7 +91,7 @@ class LlavaPhiForCausalLM(Phi3ForCausalLM, LlavaMetaForCausalLM):
                 past_key_values,
                 labels,
                 images,
-                images_derma,
+                images_sig,
                 images_dino,
                 image_sizes=image_sizes
             )

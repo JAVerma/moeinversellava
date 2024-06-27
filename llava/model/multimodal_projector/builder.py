@@ -33,11 +33,11 @@ class SimpleResBlock(nn.Module):
 def build_vision_projector(config, delay_load=False, name="clip", **kwargs):
     projector_type = getattr(config, 'mm_projector_type', 'linear')
 
-    if name=="clip":
+    if "clip" in name.lower():
         mm_hidden_size = 1024
-    elif name=="sig":
+    elif "sig" in name.lower():
         mm_hidden_size = 1152
-    elif name=="dino":
+    elif "dino" in name.lower():
         mm_hidden_size = 1024
 
     if projector_type == 'linear':

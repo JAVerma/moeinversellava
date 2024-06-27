@@ -27,7 +27,7 @@ from llava.mm_utils import get_anyres_image_grid_shape
 
 import logging
 
-logging.basicConfig(filename='/home/gitartha/llava_openai_clip_derma_clip/output.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename='./output.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
 
 logger.info('This is an info message')
@@ -41,7 +41,7 @@ class LlavaMetaModel:
             self.mm_projector = build_vision_projector(config, name="clip")
             self.mm_projector_dino = build_vision_projector(config, name="dino")
             self.mm_projector_siglip = build_vision_projector(config, name="siglip")
-            self.meta_projector=
+            # self.meta_projector=
             if 'unpad' in getattr(config, 'mm_patch_merge_type', ''):
                 self.image_newline = nn.Parameter(
                     torch.empty(config.hidden_size, dtype=self.dtype)

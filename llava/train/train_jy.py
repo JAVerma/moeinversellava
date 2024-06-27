@@ -816,7 +816,7 @@ class LazySupervisedDataset(Dataset):
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         # try:
-        try:
+        # try:
             sources = self.list_data_dict[i]
             if isinstance(i, int):
                 sources = [sources]
@@ -825,7 +825,8 @@ class LazySupervisedDataset(Dataset):
                 image_file = self.list_data_dict[i]['image']
                 image_folder = self.data_args.image_folder
                 processor = self.data_args.image_processor
-                processor_derma=self.data_args.image_processor_derma
+                processor_dino=self.data_args.image_processor_dino
+                processor_sig=self.data_args.image_provessor_siglip
                 image = Image.open(os.path.join(image_folder, image_file).strip()).convert('RGB')
                 
                 if self.data_args.image_aspect_ratio == 'pad':
@@ -843,14 +844,16 @@ class LazySupervisedDataset(Dataset):
                             return result
                     image = expand2square(image, tuple(int(x*255) for x in processor.image_mean))
                     image2=image.copy()
+                    image3=image.copy()
                     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                    image_derma=processor_derma.preprocess(image2, return_tensors='pt')['pixel_values'][0]
+                    image_dino=processor_dino.preprocess(image2, return_tensors='pt')['pixel_values'][0]
+                    image_sig=processor_sig.preprocess(image3, return_tensors='pt')['pixel_values'][0]
                 else:
                     image2=image.copy()
+                    image3=image.copy()
                     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                    # print('done 0')
-                    image_derma=processor_derma.preprocess(image2, return_tensors='pt')['pixel_values'][0]
-                    # print('done 1')
+                    image_dino=processor_dino.preprocess(image2, return_tensors='pt')['pixel_values'][0]
+                    image_sig=processor_sig.preprocess(image3, return_tensors='pt')['pixel_values'][0]
                 sources = preprocess_multimodal(
                     copy.deepcopy([e["conversations"] for e in sources]),
                     self.data_args)
@@ -867,17 +870,20 @@ class LazySupervisedDataset(Dataset):
             # image exist in the data
             if 'image' in self.list_data_dict[i]:
                 data_dict['image'] = image
-                data_dict['images_derma']=image_derma
+                data_dict['images_sig']=image_sig
+                data_dict['images_dino']=image_dino
             elif self.data_args.is_multimodal:
                 # image does not exist in the data, but the model is multimodal
                 crop_size = self.data_args.image_processor.crop_size
-                crop_size2 = self.data_args.image_processor_derma.size
+                crop_size2 = self.data_args.siglip_preprocess.size
+                crop_size3 = self.data_args.dino_preprocess.crop_size
                 data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
-                data_dict['images_derma']=torch.zeros(3, crop_size2['height'], crop_size2['width'])
+                data_dict['images_sig']=torch.zeros(3, crop_size2['height'], crop_size2['width'])
+                data_dict['images_dino']=torch.zeros(3, crop_size3['height'], crop_size3['width'])
             return data_dict
-        except Exception as e:
-            print(f'Error with {e}')
-            return self.__getitem__(i - 1)
+        # except Exception as e:
+        #     print(f'Error with {e}')
+        #     return self.__getitem__(i - 1)
 
 @dataclass
 class DataCollatorForSupervisedDataset(object):
@@ -905,13 +911,16 @@ class DataCollatorForSupervisedDataset(object):
 
         if 'image' in instances[0]:
             images = [instance['image'] for instance in instances]
-            images_derma=[instance['images_derma'] for instance in instances]
+            images_sig=[instance['images_sig'] for instance in instances]
+            images_dino=[instance['images_dino'] for instance in instances]
             if all(x is not None and x.shape == images[0].shape for x in images):
                 batch['images'] = torch.stack(images)
-                batch['images_derma']=torch.stack(images_derma)
+                batch['images_sig']=torch.stack(images_sig)
+                batch['images_dino']=torch.stack(images_dino)
             else:
                 batch['images'] = images
-                batch['images_derma']=torch.stack(images_derma)
+                batch['images_sig']=images_sig
+                batch['images_dino']=images_dino
 
         return batch
 
@@ -1107,7 +1116,7 @@ def train(attn_implementation=None):
     data_module = make_supervised_data_module(tokenizer=tokenizer,
                                               data_args=data_args)
     
-    
+    print('done')
     trainer = LLaVATrainer(model=model,
                     tokenizer=tokenizer,
                     args=training_args,
