@@ -791,8 +791,9 @@ class LazySupervisedDataset(Dataset):
                 for fut in tqdm(as_completed(future_map), total=len(future_map), desc="checking image paths"):
                     if fut.result():
                         filtered_list_data_dict.append(future_map[fut])
+        
         list_data_dict = filtered_list_data_dict
-        list_data_dict=list_data_dict[:4]
+        # list_data_dict=list_data_dict[:4]
         rank0_print("Formatting inputs...Skip in lazy mode")
         rank0_print(f"Total conversations after filtering: {len(list_data_dict)}")
         self.tokenizer = tokenizer
