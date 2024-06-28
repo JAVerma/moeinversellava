@@ -205,7 +205,7 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer,
         weight_to_save = get_mm_adapter_state_maybe_zero_3(trainer.model.named_parameters(), keys_to_match) # as in is use thus all weights are save in one
         # weight_to_save2 = get_mm_adapter_state_maybe_zero_3(trainer.model.named_parameters(), keys_to_match2)
         # weight_to_save3 = get_mm_adapter_state_maybe_zero_3(trainer.model.named_parameters(), keys_to_match3)
-        print('jayant')
+        
         trainer.model.config.save_pretrained(output_dir)
 
         current_folder = output_dir.split('/')[-1]
