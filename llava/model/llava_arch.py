@@ -115,8 +115,8 @@ class LlavaMetaModel:
                 print(keyword)
                 return {k.split(keyword + '.')[1]: v for k, v in weights.items() if keyword in k}
             self.mm_projector.load_state_dict(get_w(mm_projector_weights_base, 'mm_projector','base'))
-            self.mm_projector_dino.load_state_dict(get_w(mm_projector_weights_dino, 'mm_projector_dino','dino'))
-            self.mm_projector_siglip.load_state_dict(get_w(mm_projector_weights_siglip, 'mm_projector_siglip','siglip'))
+            self.mm_projector_dino.load_state_dict(get_w(mm_projector_weights_dino, 'mm_projector','dino'))
+            self.mm_projector_siglip.load_state_dict(get_w(mm_projector_weights_siglip, 'mm_projector','siglip'))
 
 def unpad_image(tensor, original_size):
     """
