@@ -15,7 +15,7 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-
+import numpy as np
 import os
 import random
 import copy
@@ -776,7 +776,7 @@ class LazySupervisedDataset(Dataset):
             try:
                 with Image.open(file_path) as img:
                     img.verify()
-                return True
+                return True if img.mode=="RGB" else False
             except (IOError, SyntaxError, FileNotFoundError) as e:
                 return False
         list_data_dict = json.load(open(data_path, "r"))
@@ -856,6 +856,9 @@ class LazySupervisedDataset(Dataset):
                     image_dino=processor_dino.preprocess(image2, return_tensors='pt')['pixel_values'][0]
                     image_sig=processor_sig.preprocess(image3, return_tensors='pt')['pixel_values'][0]
                 else:
+                    # import numpy as np
+                    # print(np.array(image).shape)
+                    # print(image_file)    
                     image2=image.copy()
                     image3=image.copy()
                     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
