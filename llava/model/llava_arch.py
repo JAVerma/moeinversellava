@@ -103,11 +103,20 @@ class LlavaMetaModel:
                 p.requires_grad = True
         if pretrain_mm_mlp_adapter is not None:
             mm_projector_weights = torch.load(pretrain_mm_mlp_adapter, map_location='cpu')
-            def get_w(weights, keyword):
+            mm_projector_weights_base = {k: v for k, v in mm_projector_weights.items() if 'mm_projector.' in k}
+            mm_projector_weights_dino = {k: v for k, v in mm_projector_weights.items() if 'mm_projector_dino.' in k}
+            mm_projector_weights_siglip = {k: v for k, v in mm_projector_weights.items() if 'mm_projector_siglip.' in k}
+
+            def get_w(weights, keyword,model):
+                if model=='dino':
+                    keyword=keyword+'_dino'
+                if model=='siglip':
+                    keyword=keyword+'_siglip'
+                print(keyword)
                 return {k.split(keyword + '.')[1]: v for k, v in weights.items() if keyword in k}
-
-            self.mm_projector.load_state_dict(get_w(mm_projector_weights, 'mm_projector'))
-
+            self.mm_projector.load_state_dict(get_w(mm_projector_weights_base, 'mm_projector','base'))
+            self.mm_projector_dino.load_state_dict(get_w(mm_projector_weights_dino, 'mm_projector_dino','dino'))
+            self.mm_projector_siglip.load_state_dict(get_w(mm_projector_weights_siglip, 'mm_projector_siglip','siglip'))
 
 def unpad_image(tensor, original_size):
     """

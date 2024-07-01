@@ -4,8 +4,8 @@ deepspeed llava/train/train_mem.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path microsoft/Phi-3-mini-4k-instruct \
     --version phi3_instruct \
-    --data_path /home/jayant/playground/zip/llava_v1_5_mix665k.json \
-    --image_folder /home/jayant/playground/zip \
+    --data_path /home/jayant/moeinversellava/playground/finetuning/zip/llava_v1_5_4.json \
+    --image_folder /home/jayant/moeinversellava/playground/finetuning/zip \
     --vision_tower openai/clip-vit-large-patch14-336 \
     --pretrain_mm_mlp_adapter /home/jayant/moeinversellava/checkpoints/llava-v1.5-phi3-mini-pretrain/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
@@ -17,7 +17,7 @@ deepspeed llava/train/train_mem.py \
     --bf16 True \
     --output_dir ./checkpoints/llava-v1.5-phi3-mini-FT \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 16 \
+    --per_device_train_batch_size 12 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 1 \
     --evaluation_strategy "no" \
